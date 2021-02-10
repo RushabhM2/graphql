@@ -3,27 +3,51 @@ const { graphqlHTTP } = require('express-graphql');
 const { graphql, buildSchema, isOutputType } = require('graphql');
 const app = express();
 
+const fakeDatabase = {};
+
 // use the buildSchema to create schemas for each query
 // Inside Query we have the name of the query/mutation endpoint (hello) and the type of return expected
 // rollDice is a query that takes in 2 parameters, one is mandatory
 const schema = buildSchema(`
+    input MessageInput {
+        content: String
+        author: String
+    }
+
+    type Message {
+        id: ID!
+        content: String
+        author: String
+    }
+
     type RandomDie {
         numSides: Int!
         rollOnce: Int!
         roll(numRolls: Int!): [Int]
     }
 
-    type Query {
-        getDie(numSides: Int!): RandomDie
+    type Mutation {
+        createMessage(input: MessageInput): Message
+        updateMessage(id: ID!, input: MessageInput): Message
     }
-`);
 
-/* 
+    type Query {
         quoteOfTheDay: String
         random: Float!
         rollThreeDice: [Int]
-        rollDice(numDice: Int!, numSides: Int): [Int]
-*/
+        rollDice(numDice: Int!, numSides: Int): [Int]     
+        getDie(numSides: Int!): RandomDie
+        getMessage: String
+    }
+`);
+
+class Message {
+    constructor(id, {content, author}) {
+        this.id=id;
+        this.content=content;
+        this.author=author;
+    }
+}
 
 class RandomDie {
     constructor(numSides) {
@@ -45,7 +69,7 @@ class RandomDie {
 
 // There is a resolver for each query schema above
 const root = {
-    /*quoteOfTheDay: ()=>{
+    quoteOfTheDay: ()=>{
         return Math.random() < 0.5 ? 'Hello world' : 'other quote'
     },
     random: ()=>{
@@ -65,9 +89,29 @@ const root = {
             output.push(1+Math.floor(Math.random()*(args.numSides || 6))) 
         }
         return output;
-    },*/
+    },
     getDie: ({numSides}) => {
         return new RandomDie(numSides || 6)
+    },
+    getMessage: ({id}) => {
+        if (!fakeDatabase[id]) {
+            throw Error('no message exists')
+        }
+        return new Message(id, fakeDatabase[id])
+    },
+    createMessage: ({input}) => {
+        // Create a random id for our "database".
+        const id = require('crypto').randomBytes(10).toString('hex');
+
+        fakeDatabase[id] = input;
+        return new Message(id, input)
+    },
+    updateMessage: ({id, input}) => {
+        if(!fakeDatabase[id]) {
+            throw Error('no message exists')
+        }
+        fakeDatabase[id] = input;
+        return new Message(id, input)
     }
 }
 
